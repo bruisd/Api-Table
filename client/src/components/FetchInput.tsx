@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { parseFetch, SAMPLE_FETCH, type ParseResult } from '../lib/fetchParser';
 import { detectVariables, replaceVariables, hasUnresolvedVariables } from '../lib/variableEngine';
+import { API_BASE_URL } from '../lib/config';
 import VariableDetector from './VariableDetector';
 import styles from './FetchInput.module.css';
 
@@ -65,7 +66,7 @@ export default function FetchInput({
 
     try {
       // Execute the fetch call through the proxy
-      const proxyResponse = await fetch('/api/proxy', {
+      const proxyResponse = await fetch(`${API_BASE_URL}/api/proxy`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

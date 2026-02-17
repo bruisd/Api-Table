@@ -1,4 +1,5 @@
 import { useState, FormEvent } from 'react';
+import { API_BASE_URL } from '../lib/config';
 import styles from './PasscodeModal.module.css';
 
 interface PasscodeModalProps {
@@ -22,7 +23,7 @@ export default function PasscodeModal({ onUnlock }: PasscodeModalProps) {
     setIsVerifying(true);
 
     try {
-      const response = await fetch('/api/verify-warp-passcode', {
+      const response = await fetch(`${API_BASE_URL}/api/verify-warp-passcode`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

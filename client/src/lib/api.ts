@@ -2,7 +2,9 @@
  * API client for share functionality
  */
 
-const API_BASE = '/api';
+import { API_BASE_URL } from './config';
+
+const API_BASE = `${API_BASE_URL}/api`;
 
 export interface CreateShareResponse {
   id: string;
