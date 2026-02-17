@@ -1,25 +1,25 @@
-import 'dotenv/config';
-import express, { Request, Response, NextFunction } from 'express';
-import cors from 'cors';
-import Database from 'better-sqlite3';
-import { nanoid } from 'nanoid';
-import cron from 'node-cron';
-import path from 'path';
-import fs from 'fs';
-import { proxyHandler, proxyRateLimiter } from './routes/proxy';
+import "dotenv/config";
+import express, { Request, Response, NextFunction } from "express";
+import cors from "cors";
+import Database from "better-sqlite3";
+import { nanoid } from "nanoid";
+import cron from "node-cron";
+import path from "path";
+import fs from "fs";
+import { proxyHandler, proxyRateLimiter } from "./routes/proxy";
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+const IS_PRODUCTION = process.env.NODE_ENV === "production";
 
 // Ensure data directory exists
-const dataDir = path.join(__dirname, '..', 'data');
+const dataDir = path.join(__dirname, "..", "data");
 if (!fs.existsSync(dataDir)) {
   fs.mkdirSync(dataDir, { recursive: true });
 }
 
 // Initialize SQLite database
-const dbPath = path.join(dataDir, 'shares.db');
+const dbPath = path.join(dataDir, "shares.db");
 const db = new Database(dbPath);
 
 // Create tables
@@ -42,7 +42,7 @@ const RATE_LIMIT_MAX = 30;
 
 // Rate limiter middleware
 function rateLimiter(req: Request, res: Response, next: NextFunction): void {
-  const ip = req.ip || req.socket.remoteAddress || 'unknown';
+  const ip = req.ip || req.socket.remoteAddress || "unknown";
   const now = Date.now();
 
   const entry = rateLimitMap.get(ip);
@@ -54,7 +54,7 @@ function rateLimiter(req: Request, res: Response, next: NextFunction): void {
   }
 
   if (entry.count >= RATE_LIMIT_MAX) {
-    res.status(429).json({ error: 'Rate limit exceeded. Try again later.' });
+    res.status(429).json({ error: "Rate limit exceeded. Try again later." });
     return;
   }
 
@@ -63,25 +63,43 @@ function rateLimiter(req: Request, res: Response, next: NextFunction): void {
 }
 
 // CORS configuration
+const allowedOrigins = [
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
+  "https://apitable.io",
+  "https://www.apitable.io",
+];
+
 const corsOptions = {
-  origin: IS_PRODUCTION
-    ? ['https://apitable.io', 'https://www.apitable.io']
-    : ['http://localhost:5173', 'http://127.0.0.1:5173'],
-  credentials: true
+  origin: (
+    origin: string | undefined,
+    callback: (err: Error | null, allow?: boolean) => void,
+  ) => {
+    // Allow requests with no origin (curl, Postman, server-to-server)
+    if (!origin) return callback(null, true);
+    // Allow any netlify.app subdomain
+    if (origin.endsWith(".netlify.app") || allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    callback(new Error("Not allowed by CORS"));
+  },
+  credentials: true,
 };
 
 // Middleware
 app.use(cors(corsOptions));
-app.use(express.json({ limit: '5mb' }));
+app.use(express.json({ limit: "5mb" }));
 
 // Health check endpoint
-app.get('/api/health', (_req: Request, res: Response) => {
-  const stmt = db.prepare('SELECT COUNT(*) as count FROM shares WHERE expires_at > datetime("now")');
+app.get("/api/health", (_req: Request, res: Response) => {
+  const stmt = db.prepare(
+    'SELECT COUNT(*) as count FROM shares WHERE expires_at > datetime("now")',
+  );
   const result = stmt.get() as { count: number };
 
   res.json({
-    status: 'ok',
-    activeShares: result.count
+    status: "ok",
+    activeShares: result.count,
   });
 });
 
@@ -92,11 +110,11 @@ interface CreateShareBody {
   url?: string;
 }
 
-app.post('/api/share', rateLimiter, (req: Request, res: Response) => {
+app.post("/api/share", rateLimiter, (req: Request, res: Response) => {
   const { data, fetchInput, url } = req.body as CreateShareBody;
 
   if (!data) {
-    res.status(400).json({ error: 'Data is required' });
+    res.status(400).json({ error: "Data is required" });
     return;
   }
 
@@ -109,7 +127,13 @@ app.post('/api/share', rateLimiter, (req: Request, res: Response) => {
       VALUES (?, ?, ?, ?, ?)
     `);
 
-    stmt.run(id, JSON.stringify(data), fetchInput || null, url || null, expiresAt);
+    stmt.run(
+      id,
+      JSON.stringify(data),
+      fetchInput || null,
+      url || null,
+      expiresAt,
+    );
 
     const shareUrl = IS_PRODUCTION
       ? `https://apitable.io/s/${id}`
@@ -118,16 +142,16 @@ app.post('/api/share', rateLimiter, (req: Request, res: Response) => {
     res.json({
       id,
       shareUrl,
-      expiresAt
+      expiresAt,
     });
   } catch (error) {
-    console.error('Error creating share:', error);
-    res.status(500).json({ error: 'Failed to create share' });
+    console.error("Error creating share:", error);
+    res.status(500).json({ error: "Failed to create share" });
   }
 });
 
 // Get share endpoint
-app.get('/api/share/:id', (req: Request, res: Response) => {
+app.get("/api/share/:id", (req: Request, res: Response) => {
   const { id } = req.params;
 
   try {
@@ -137,17 +161,19 @@ app.get('/api/share/:id', (req: Request, res: Response) => {
       WHERE id = ? AND expires_at > datetime('now')
     `);
 
-    const share = stmt.get(id) as {
-      id: string;
-      data: string;
-      fetch_input: string | null;
-      url: string | null;
-      created_at: string;
-      expires_at: string;
-    } | undefined;
+    const share = stmt.get(id) as
+      | {
+          id: string;
+          data: string;
+          fetch_input: string | null;
+          url: string | null;
+          created_at: string;
+          expires_at: string;
+        }
+      | undefined;
 
     if (!share) {
-      res.status(404).json({ error: 'Share not found or expired' });
+      res.status(404).json({ error: "Share not found or expired" });
       return;
     }
 
@@ -157,25 +183,32 @@ app.get('/api/share/:id', (req: Request, res: Response) => {
       fetchInput: share.fetch_input,
       url: share.url,
       createdAt: share.created_at,
-      expiresAt: share.expires_at
+      expiresAt: share.expires_at,
     });
   } catch (error) {
-    console.error('Error fetching share:', error);
-    res.status(500).json({ error: 'Failed to fetch share' });
+    console.error("Error fetching share:", error);
+    res.status(500).json({ error: "Failed to fetch share" });
   }
 });
 
 // Proxy endpoint
-app.post('/api/proxy', proxyRateLimiter, proxyHandler);
+app.post("/api/proxy", proxyRateLimiter, proxyHandler);
 
 // Warp passcode verification
 // Rate limiter for passcode attempts
-const passcodeRateLimitMap = new Map<string, { count: number; windowStart: number }>();
+const passcodeRateLimitMap = new Map<
+  string,
+  { count: number; windowStart: number }
+>();
 const PASSCODE_RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
 const PASSCODE_RATE_LIMIT_MAX = 5;
 
-function passcodeRateLimiter(req: Request, res: Response, next: NextFunction): void {
-  const ip = req.ip || req.socket.remoteAddress || 'unknown';
+function passcodeRateLimiter(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): void {
+  const ip = req.ip || req.socket.remoteAddress || "unknown";
   const now = Date.now();
 
   const entry = passcodeRateLimitMap.get(ip);
@@ -187,7 +220,7 @@ function passcodeRateLimiter(req: Request, res: Response, next: NextFunction): v
   }
 
   if (entry.count >= PASSCODE_RATE_LIMIT_MAX) {
-    res.status(429).json({ error: 'Too many attempts. Try again later.' });
+    res.status(429).json({ error: "Too many attempts. Try again later." });
     return;
   }
 
@@ -199,63 +232,71 @@ interface VerifyPasscodeBody {
   passcode: string;
 }
 
-app.post('/api/verify-warp-passcode', passcodeRateLimiter, (req: Request, res: Response) => {
-  const { passcode } = req.body as VerifyPasscodeBody;
+app.post(
+  "/api/verify-warp-passcode",
+  passcodeRateLimiter,
+  (req: Request, res: Response) => {
+    const { passcode } = req.body as VerifyPasscodeBody;
 
-  if (!passcode || typeof passcode !== 'string') {
-    res.status(400).json({ valid: false });
-    return;
-  }
+    if (!passcode || typeof passcode !== "string") {
+      res.status(400).json({ valid: false });
+      return;
+    }
 
-  const correctPasscode = process.env.WARP_PASSCODE;
+    const correctPasscode = process.env.WARP_PASSCODE;
 
-  if (!correctPasscode) {
-    console.error('WARP_PASSCODE environment variable is not set');
-    res.status(500).json({ error: 'Server configuration error' });
-    return;
-  }
+    if (!correctPasscode) {
+      console.error("WARP_PASSCODE environment variable is not set");
+      res.status(500).json({ error: "Server configuration error" });
+      return;
+    }
 
-  const valid = passcode === correctPasscode;
+    const valid = passcode === correctPasscode;
 
-  res.json({ valid });
-});
+    res.json({ valid });
+  },
+);
 
 // Serve static files in production
 if (IS_PRODUCTION) {
-  const clientBuildPath = path.join(__dirname, '..', '..', 'client', 'dist');
-  app.use(express.static(clientBuildPath));
+  const clientBuildPath = path.join(__dirname, "..", "..", "client", "dist");
+  if (fs.existsSync(clientBuildPath)) {
+    app.use(express.static(clientBuildPath));
 
-  app.get('*', (_req: Request, res: Response) => {
-    res.sendFile(path.join(clientBuildPath, 'index.html'));
-  });
+    app.get("*", (_req: Request, res: Response) => {
+      res.sendFile(path.join(clientBuildPath, "index.html"));
+    });
+  }
 }
 
 // Cleanup job - runs every hour
-cron.schedule('0 * * * *', () => {
+cron.schedule("0 * * * *", () => {
   try {
-    const stmt = db.prepare(`DELETE FROM shares WHERE expires_at < datetime('now')`);
+    const stmt = db.prepare(
+      `DELETE FROM shares WHERE expires_at < datetime('now')`,
+    );
     const result = stmt.run();
     console.log(`[Cleanup] Deleted ${result.changes} expired shares`);
   } catch (error) {
-    console.error('[Cleanup] Error:', error);
+    console.error("[Cleanup] Error:", error);
   }
 });
 
 // Start server
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
-  console.log(`Environment: ${IS_PRODUCTION ? 'production' : 'development'}`);
+  console.log(`Environment: ${IS_PRODUCTION ? "production" : "development"}`);
 });
 
 // Graceful shutdown
-process.on('SIGINT', () => {
-  console.log('Shutting down...');
+process.on("SIGINT", () => {
+  console.log("Shutting down...");
   db.close();
   process.exit(0);
 });
 
-process.on('SIGTERM', () => {
-  console.log('Shutting down...');
+process.on("SIGTERM", () => {
+  console.log("Shutting down...");
   db.close();
   process.exit(0);
 });
