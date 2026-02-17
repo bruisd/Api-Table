@@ -93,7 +93,7 @@ app.use(express.json({ limit: "5mb" }));
 // Health check endpoint
 app.get("/api/health", (_req: Request, res: Response) => {
   const stmt = db.prepare(
-    'SELECT COUNT(*) as count FROM shares WHERE expires_at > datetime("now")',
+    `SELECT COUNT(*) as count FROM shares WHERE expires_at > datetime('now')`,
   );
   const result = stmt.get() as { count: number };
 
