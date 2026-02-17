@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { generateWarpConfig, isValidFetchInput } from '../lib/warpGenerator';
+import PasscodeModal from './PasscodeModal';
 import styles from './WarpConfigGenerator.module.css';
 
 interface WarpConfigGeneratorProps {
@@ -8,6 +9,13 @@ interface WarpConfigGeneratorProps {
 
 export default function WarpConfigGenerator({ fetchInput }: WarpConfigGeneratorProps) {
   const [copied, setCopied] = useState(false);
+  const [isUnlocked, setIsUnlocked] = useState(false);
+
+  // Check sessionStorage on mount
+  useEffect(() => {
+    const unlocked = sessionStorage.getItem('warpUnlocked') === 'true';
+    setIsUnlocked(unlocked);
+  }, []);
 
   const config = useMemo(() => {
     if (!fetchInput.trim() || !isValidFetchInput(fetchInput)) {
@@ -17,7 +25,7 @@ export default function WarpConfigGenerator({ fetchInput }: WarpConfigGeneratorP
   }, [fetchInput]);
 
   const handleCopy = async () => {
-    if (!config) return;
+    if (!config || !isUnlocked) return;
 
     try {
       await navigator.clipboard.writeText(config);
@@ -27,6 +35,15 @@ export default function WarpConfigGenerator({ fetchInput }: WarpConfigGeneratorP
       console.error('Failed to copy:', err);
     }
   };
+
+  const handleUnlock = () => {
+    setIsUnlocked(true);
+  };
+
+  // Show passcode modal if not unlocked
+  if (!isUnlocked) {
+    return <PasscodeModal onUnlock={handleUnlock} />;
+  }
 
   if (!config) {
     return (
@@ -61,6 +78,7 @@ export default function WarpConfigGenerator({ fetchInput }: WarpConfigGeneratorP
           type="button"
           className={`btn ${copied ? 'btn-primary' : 'btn-secondary'}`}
           onClick={handleCopy}
+          disabled={!isUnlocked}
         >
           {copied ? (
             <>

@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import Database from 'better-sqlite3';
@@ -166,6 +167,58 @@ app.get('/api/share/:id', (req: Request, res: Response) => {
 
 // Proxy endpoint
 app.post('/api/proxy', proxyRateLimiter, proxyHandler);
+
+// Warp passcode verification
+// Rate limiter for passcode attempts
+const passcodeRateLimitMap = new Map<string, { count: number; windowStart: number }>();
+const PASSCODE_RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
+const PASSCODE_RATE_LIMIT_MAX = 5;
+
+function passcodeRateLimiter(req: Request, res: Response, next: NextFunction): void {
+  const ip = req.ip || req.socket.remoteAddress || 'unknown';
+  const now = Date.now();
+
+  const entry = passcodeRateLimitMap.get(ip);
+
+  if (!entry || now - entry.windowStart > PASSCODE_RATE_LIMIT_WINDOW) {
+    passcodeRateLimitMap.set(ip, { count: 1, windowStart: now });
+    next();
+    return;
+  }
+
+  if (entry.count >= PASSCODE_RATE_LIMIT_MAX) {
+    res.status(429).json({ error: 'Too many attempts. Try again later.' });
+    return;
+  }
+
+  entry.count++;
+  next();
+}
+
+interface VerifyPasscodeBody {
+  passcode: string;
+}
+
+app.post('/api/verify-warp-passcode', passcodeRateLimiter, (req: Request, res: Response) => {
+  const { passcode } = req.body as VerifyPasscodeBody;
+
+  if (!passcode || typeof passcode !== 'string') {
+    res.status(400).json({ valid: false });
+    return;
+  }
+
+  const correctPasscode = process.env.WARP_PASSCODE;
+
+  if (!correctPasscode) {
+    console.error('WARP_PASSCODE environment variable is not set');
+    res.status(500).json({ error: 'Server configuration error' });
+    return;
+  }
+
+  const valid = passcode === correctPasscode;
+
+  res.json({ valid });
+});
 
 // Serve static files in production
 if (IS_PRODUCTION) {
