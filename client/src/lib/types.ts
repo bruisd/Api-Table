@@ -12,7 +12,7 @@ export interface HistoryEntry {
   response?: unknown;
 }
 
-export type TabType = 'table' | 'json' | 'warp';
+export type TabType = 'table' | 'json';
 
 export interface ExecutionState {
   loading: boolean;

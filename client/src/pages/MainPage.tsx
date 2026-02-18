@@ -1,7 +1,6 @@
 import { useState, useCallback } from 'react';
 import FetchInput from '../components/FetchInput';
 import WarpTable from '../components/WarpTable';
-import WarpConfigGenerator from '../components/WarpConfigGenerator';
 import ShareButton from '../components/ShareButton';
 import History, { addToHistory } from '../components/History';
 import type { TabType, HistoryEntry } from '../lib/types';
@@ -132,13 +131,6 @@ export default function MainPage() {
             >
               Raw JSON
             </button>
-            <button
-              type="button"
-              className={`tab ${activeTab === 'warp' ? 'active' : ''}`}
-              onClick={() => setActiveTab('warp')}
-            >
-              Warp Config
-            </button>
           </div>
 
           <div className={styles.tabContent}>
@@ -154,10 +146,6 @@ export default function MainPage() {
                   <code>{JSON.stringify(response, null, 2)}</code>
                 </pre>
               </div>
-            )}
-
-            {activeTab === 'warp' && (
-              <WarpConfigGenerator fetchInput={fetchInput} />
             )}
           </div>
         </div>
