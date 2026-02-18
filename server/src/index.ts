@@ -135,9 +135,10 @@ app.post("/api/share", rateLimiter, (req: Request, res: Response) => {
       expiresAt,
     );
 
-    const shareUrl = IS_PRODUCTION
-      ? `https://apitable.io/s/${id}`
-      : `http://localhost:5173/s/${id}`;
+    const frontendUrl =
+      process.env.FRONTEND_URL ||
+      (IS_PRODUCTION ? "https://apitable.io" : "http://localhost:5173");
+    const shareUrl = `${frontendUrl}/s/${id}`;
 
     res.json({
       id,
