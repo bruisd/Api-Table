@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { getShare, type GetShareResponse } from '../lib/api';
-import ResultTable from './ResultTable';
+import WarpTable from './WarpTable';
 import styles from './SharedView.module.css';
 
 export default function SharedView() {
@@ -116,7 +116,7 @@ export default function SharedView() {
       </div>
 
       <div className={styles.content}>
-        <ResultTable data={share.data} />
+        <WarpTable data={share.data} />
       </div>
 
       <div className={styles.footer}>

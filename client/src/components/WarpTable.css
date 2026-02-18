@@ -1,0 +1,74 @@
+/* Warp Platform Table Styles - Exact Match for XPath Compatibility */
+
+.warp-table-container {
+  overflow-x: auto;
+}
+
+.warp-table-container table {
+  width: 100%;
+  border: solid rgba(139, 139, 139, 0.22);
+  border-width: 10px 5px 10px 10px;
+  border-collapse: collapse;
+}
+
+.warp-table-container table table {
+  border-width: 5px 3px 5px 8px;
+}
+
+.warp-table-container tr {
+  border: 0px;
+}
+
+.warp-table-container .name {
+  width: 10%;
+  border: 1px solid rgba(139, 139, 139, 0.22);
+  padding: 5px;
+  white-space: pre-wrap;
+  color: #38bdf8;
+  font-weight: 500;
+  font-size: 13px;
+  font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', monospace;
+  vertical-align: top;
+}
+
+.warp-table-container .value {
+  width: 90%;
+  border: 1px solid rgba(139, 139, 139, 0.22);
+  padding: 5px;
+  color: #e2e8f0;
+  font-size: 13px;
+  font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', monospace;
+  word-break: break-word;
+  vertical-align: top;
+}
+
+/* Null/empty values styling */
+.warp-table-container tr[value=""] .value {
+  color: #6b7280;
+  font-style: italic;
+}
+
+.warp-table-container tr[value=""] .value:empty::before {
+  content: 'null';
+}
+
+/* Number values */
+.warp-table-container tr[type="number"] .value {
+  color: #c4b5fd;
+}
+
+/* Boolean values */
+.warp-table-container tr[type="boolean"] .value {
+  color: #fbbf24;
+}
+
+/* String values remain default color (light gray) */
+.warp-table-container tr[type="string"] .value {
+  color: #e2e8f0;
+}
+
+/* Hover effect for better UX */
+.warp-table-container tr:hover > .name,
+.warp-table-container tr:hover > .value {
+  background-color: rgba(124, 58, 237, 0.05);
+}

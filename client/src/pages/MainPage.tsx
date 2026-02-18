@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import FetchInput from '../components/FetchInput';
-import ResultTable from '../components/ResultTable';
+import WarpTable from '../components/WarpTable';
 import WarpConfigGenerator from '../components/WarpConfigGenerator';
 import ShareButton from '../components/ShareButton';
 import History, { addToHistory } from '../components/History';
@@ -144,7 +144,7 @@ export default function MainPage() {
           <div className={styles.tabContent}>
             {activeTab === 'table' && (
               <div className={styles.tableContainer}>
-                <ResultTable data={response} />
+                <WarpTable data={response} />
               </div>
             )}
 
