@@ -1,7 +1,7 @@
 import "dotenv/config";
 import express, { Request, Response, NextFunction } from "express";
 import cors from "cors";
-import Database from "better-sqlite3";
+import { createClient } from "@libsql/client";
 import { nanoid } from "nanoid";
 import cron from "node-cron";
 import path from "path";
@@ -12,28 +12,30 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 const IS_PRODUCTION = process.env.NODE_ENV === "production";
 
-// Ensure data directory exists
-const dataDir = path.join(__dirname, "..", "data");
-if (!fs.existsSync(dataDir)) {
-  fs.mkdirSync(dataDir, { recursive: true });
-}
-
-// Initialize SQLite database
-const dbPath = path.join(dataDir, "shares.db");
-const db = new Database(dbPath);
+// Initialize Turso database
+const db = createClient({
+  url: process.env.TURSO_DATABASE_URL || "file:./data/shares.db",
+  authToken: process.env.TURSO_AUTH_TOKEN,
+});
 
 // Create tables
-db.exec(`
-  CREATE TABLE IF NOT EXISTS shares (
-    id TEXT PRIMARY KEY,
-    data TEXT NOT NULL,
-    fetch_input TEXT,
-    url TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    expires_at DATETIME NOT NULL
+async function initDb() {
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS shares (
+      id TEXT PRIMARY KEY,
+      data TEXT NOT NULL,
+      fetch_input TEXT,
+      url TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      expires_at DATETIME NOT NULL
+    )
+  `);
+  await db.execute(
+    `CREATE INDEX IF NOT EXISTS idx_expires ON shares(expires_at)`,
   );
-  CREATE INDEX IF NOT EXISTS idx_expires ON shares(expires_at);
-`);
+}
+
+initDb().catch(console.error);
 
 // Rate limiter storage
 const rateLimitMap = new Map<string, { count: number; windowStart: number }>();
@@ -91,15 +93,14 @@ app.use(cors(corsOptions));
 app.use(express.json({ limit: "5mb" }));
 
 // Health check endpoint
-app.get("/api/health", (_req: Request, res: Response) => {
-  const stmt = db.prepare(
+app.get("/api/health", async (_req: Request, res: Response) => {
+  const result = await db.execute(
     `SELECT COUNT(*) as count FROM shares WHERE expires_at > datetime('now')`,
   );
-  const result = stmt.get() as { count: number };
 
   res.json({
     status: "ok",
-    activeShares: result.count,
+    activeShares: (result.rows[0] as unknown as { count: number }).count,
   });
 });
 
@@ -110,7 +111,7 @@ interface CreateShareBody {
   url?: string;
 }
 
-app.post("/api/share", rateLimiter, (req: Request, res: Response) => {
+app.post("/api/share", rateLimiter, async (req: Request, res: Response) => {
   const { data, fetchInput, url } = req.body as CreateShareBody;
 
   if (!data) {
@@ -122,18 +123,11 @@ app.post("/api/share", rateLimiter, (req: Request, res: Response) => {
   const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
 
   try {
-    const stmt = db.prepare(`
-      INSERT INTO shares (id, data, fetch_input, url, expires_at)
-      VALUES (?, ?, ?, ?, ?)
-    `);
-
-    stmt.run(
-      id,
-      JSON.stringify(data),
-      fetchInput || null,
-      url || null,
-      expiresAt,
-    );
+    await db.execute({
+      sql: `INSERT INTO shares (id, data, fetch_input, url, expires_at)
+            VALUES (?, ?, ?, ?, ?)`,
+      args: [id, JSON.stringify(data), fetchInput || null, url || null, expiresAt],
+    });
 
     const frontendUrl =
       process.env.FRONTEND_URL ||
@@ -152,17 +146,18 @@ app.post("/api/share", rateLimiter, (req: Request, res: Response) => {
 });
 
 // Get share endpoint
-app.get("/api/share/:id", (req: Request, res: Response) => {
+app.get("/api/share/:id", async (req: Request, res: Response) => {
   const { id } = req.params;
 
   try {
-    const stmt = db.prepare(`
-      SELECT id, data, fetch_input, url, created_at, expires_at
-      FROM shares
-      WHERE id = ? AND expires_at > datetime('now')
-    `);
+    const result = await db.execute({
+      sql: `SELECT id, data, fetch_input, url, created_at, expires_at
+            FROM shares
+            WHERE id = ? AND expires_at > datetime('now')`,
+      args: [id],
+    });
 
-    const share = stmt.get(id) as
+    const share = result.rows[0] as unknown as
       | {
           id: string;
           data: string;
@@ -180,7 +175,7 @@ app.get("/api/share/:id", (req: Request, res: Response) => {
 
     res.json({
       id: share.id,
-      data: JSON.parse(share.data),
+      data: JSON.parse(share.data as string),
       fetchInput: share.fetch_input,
       url: share.url,
       createdAt: share.created_at,
@@ -208,13 +203,12 @@ if (IS_PRODUCTION) {
 }
 
 // Cleanup job - runs every hour
-cron.schedule("0 * * * *", () => {
+cron.schedule("0 * * * *", async () => {
   try {
-    const stmt = db.prepare(
+    const result = await db.execute(
       `DELETE FROM shares WHERE expires_at < datetime('now')`,
     );
-    const result = stmt.run();
-    console.log(`[Cleanup] Deleted ${result.changes} expired shares`);
+    console.log(`[Cleanup] Deleted ${result.rowsAffected} expired shares`);
   } catch (error) {
     console.error("[Cleanup] Error:", error);
   }
@@ -229,12 +223,10 @@ app.listen(PORT, () => {
 // Graceful shutdown
 process.on("SIGINT", () => {
   console.log("Shutting down...");
-  db.close();
   process.exit(0);
 });
 
 process.on("SIGTERM", () => {
   console.log("Shutting down...");
-  db.close();
   process.exit(0);
 });
