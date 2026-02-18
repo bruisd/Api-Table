@@ -1,10 +1,8 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import FetchInput from '../components/FetchInput';
 import WarpTable from '../components/WarpTable';
 import ShareButton from '../components/ShareButton';
-import History, { addToHistory } from '../components/History';
-import type { TabType, HistoryEntry } from '../lib/types';
-import { parseFetch } from '../lib/fetchParser';
+import type { TabType } from '../lib/types';
 import styles from './MainPage.module.css';
 
 export default function MainPage() {
@@ -23,19 +21,6 @@ export default function MainPage() {
       setUrl(requestUrl);
       setFetchInput(input);
       setError(null);
-
-      // Get method from parsed input
-      const parsed = parseFetch(input);
-      const method = parsed.data?.method || 'GET';
-
-      // Add to history
-      addToHistory({
-        fetchInput: input,
-        url: requestUrl,
-        method,
-        statusCode: status,
-        response: data,
-      });
     },
     []
   );
@@ -46,22 +31,25 @@ export default function MainPage() {
     setStatusCode(null);
   }, []);
 
-  const handleHistorySelect = useCallback((entry: HistoryEntry) => {
-    setFetchInput(entry.fetchInput);
-    if (entry.response) {
-      setResponse(entry.response);
-      setStatusCode(entry.statusCode);
-      setUrl(entry.url);
+  // Listen for reset event from header
+  useEffect(() => {
+    const handleReset = () => {
+      setActiveTab('table');
+      setLoading(false);
       setError(null);
-    }
+      setResponse(null);
+      setStatusCode(null);
+      setUrl(null);
+      setFetchInput('');
+    };
+
+    window.addEventListener('apitable:reset', handleReset);
+    return () => window.removeEventListener('apitable:reset', handleReset);
   }, []);
 
   return (
     <div className={styles.page}>
       <div className={styles.inputSection}>
-        <div className={styles.inputHeader}>
-          <History onSelect={handleHistorySelect} />
-        </div>
         <FetchInput
           onExecute={handleExecute}
           onError={handleError}
